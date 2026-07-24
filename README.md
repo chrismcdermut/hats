@@ -112,6 +112,56 @@ Because each identity's credentials live in their own directory, isolation is
 structural: a process wearing the client hat cannot accidentally deploy with
 the dayjob account, because dayjob's tokens are simply not on its path.
 
+## Logging in (populating a hat)
+
+A hat's `env` only *points* at credential directories. You still have to put
+credentials in them, and the golden rule is:
+
+> **Always log in through the hat.** `hats run <profile> -- <cli> login`
+> writes the token to that profile's directory. A bare `<cli> login` writes to
+> the CLI's default location and silently ends up under the wrong (or no)
+> identity.
+
+So to set up a new hat, log each CLI in wearing it:
+
+```sh
+hats run client -- gws auth login        # -> ~/.config/gws-client
+hats run client -- vercel login          # -> ~/.config/vercel-client (needs shim, see below)
+hats run client -- render login          # -> ~/.config/render-client
+hats run client -- gcloud auth login     # -> ~/.config/gcloud-client
+hats run client -- neonctl auth          # -> ~/.config/neon-client (needs shim)
+hats run client -- doppler login         # -> ~/.config/doppler-client
+
+hats doctor client                       # confirm each one landed
+```
+
+Each is a normal browser OAuth flow; the only thing hats changes is *where the
+resulting token is saved*. Because the env var is set for that command, the CLI
+reads and writes the right directory. Do this once per identity per machine
+(tokens don't sync between machines, so you re-login on each, but the hat
+definition travels).
+
+### The vercel / neon shim caveat
+
+CLIs with a native config-dir env var (gcloud, doppler, render, gws, Claude
+Code) work out of the box. But **vercel and neon ignore env vars** and always
+use a fixed default location, so `hats run client -- vercel login` would still
+clobber your default vercel login. The fix is a tiny wrapper on `PATH` that
+translates an env var into their `--config` flag:
+
+```sh
+#!/bin/sh
+# ~/.local/bin/vercel  (shim; real binary must be elsewhere on PATH)
+if [ -n "$VERCEL_CONFIG_DIR" ]; then
+  exec vercel-real --global-config "$VERCEL_CONFIG_DIR" "$@"
+fi
+exec vercel-real "$@"
+```
+
+Put the shim dir in the profile's `path_prepend`, and `VERCEL_CONFIG_DIR` in
+its `env`. Then vercel logins land per-hat like everything else. (A future hats
+release will generate these shims for you.)
+
 ## Launcher aliases (Claude Code, Codex, ...)
 
 Hats carry all the identity; aliases are just muscle memory. Point short
