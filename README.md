@@ -62,25 +62,47 @@ Define your hats in `~/.config/hats/profiles.json`:
       "env": {
         "CLAUDE_CONFIG_DIR": "~/.claude-dayjob",
         "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-dayjob",
-        "VERCEL_CONFIG_DIR": "~/.config/vercel-dayjob"
+        "GOOGLE_WORKSPACE_PROJECT_ID": "gws-dayjob-cli",
+        "VERCEL_CONFIG_DIR": "~/.config/vercel-dayjob",
+        "RENDER_CLI_CONFIG_PATH": "~/.config/render-dayjob",
+        "CLOUDSDK_CONFIG": "~/.config/gcloud-dayjob"
       },
       "doctor": {
         "claude": "~/.claude-dayjob/.claude.json",
         "gws": "~/.config/gws-dayjob",
-        "vercel": "~/.config/vercel-dayjob/auth.json"
+        "vercel": "~/.config/vercel-dayjob/auth.json",
+        "render": "~/.config/render-dayjob",
+        "gcloud": "~/.config/gcloud-dayjob"
+      },
+      "logins": {
+        "gws": "gws auth login",
+        "vercel": "vercel login",
+        "render": "render login",
+        "gcloud": "gcloud auth login"
       }
     },
     "client": {
       "description": "Client contract",
       "env": {
         "CLAUDE_CONFIG_DIR": "~/.claude-client",
+        "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-client",
         "VERCEL_CONFIG_DIR": "~/.config/vercel-client",
         "RENDER_CLI_CONFIG_PATH": "~/.config/render-client"
+      },
+      "logins": {
+        "gws": "gws auth login",
+        "vercel": "vercel login",
+        "render": "render login"
       }
     }
   }
 }
 ```
+
+A hat can bundle as many or as few CLIs as you use. `personal` above scopes
+just Claude and Vercel; `dayjob` scopes Claude, Google Workspace, Vercel,
+Render, and gcloud. Add a CLI to an identity by adding its config-dir env var
+to that profile, nothing else.
 
 Then:
 
@@ -187,6 +209,28 @@ alias cxdy='hats run dayjob -- codex --full-auto'
 # or ad hoc, no alias needed
 hats run client -- claude -p "summarize this repo"
 ```
+
+The same trick works for any CLI, so you can reach a specific identity's
+Vercel/Render/Google Workspace without wearing the whole hat. Name them
+`<cli><identity>`:
+
+```sh
+# Google Workspace per identity (gws<initial>)
+alias gwsp='hats run personal -- gws'
+alias gwsd='hats run dayjob -- gws'
+alias gwsc='hats run client -- gws'
+
+# Vercel / Render per identity
+alias verp='hats run personal -- vercel'
+alias verc='hats run client -- vercel'
+alias rendd='hats run dayjob -- render'
+alias rendc='hats run client -- render'
+```
+
+Now `gwsc drive files list` runs Google Workspace as the client, and
+`rendd deploy` deploys Render as your employer, from any directory. Because
+these delegate to `hats run`, the identity still lives only in profiles.json:
+every alias is a thin pointer with zero credentials or paths baked in.
 
 Adding identity #4 is a profiles.json edit. No alias surgery, no duplicated
 env blocks, and the aliases contain zero identity information.
