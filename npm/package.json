@@ -1,7 +1,7 @@
 {
   "name": "manyhats",
   "version": "0.1.1",
-  "description": "Identity profiles for agents and shells \u2014 direnv scopes environments to directories; hats scopes them to identities.",
+  "description": "Identity profiles for agents and shells - direnv scopes environments to directories; hats scopes them to identities.",
   "bin": {
     "hats": "./hats.js"
   },

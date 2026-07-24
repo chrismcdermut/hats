@@ -18,3 +18,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+
+  npm:
+    # Publishes the manyhats shim at the tag's version via npm trusted publishing
+    # (OIDC, no token). One-time setup on npmjs.com: manyhats -> Settings ->
+    # Trusted Publisher -> GitHub Actions, repo chrismcdermut/hats, workflow release.yml.
+    runs-on: ubuntu-latest
+    needs: goreleaser
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: version from tag
+        working-directory: npm
+        run: npm version --no-git-tag-version "${GITHUB_REF_NAME#v}"
+      - name: publish
+        working-directory: npm
+        run: npm publish --access public --provenance
