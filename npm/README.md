@@ -88,6 +88,7 @@ Then:
 hats ls                            # list hats (* = the one you're wearing)
 hats run client -- vercel deploy   # one command under an identity
 hats shell client                  # a subshell wearing the hat
+hats login client                  # log this hat's CLIs in (writes to its dirs)
 hats which                         # what hat is this process wearing?
 hats doctor                        # is every identity aligned and logged in?
 hats env client                    # eval-able exports, for scripts

@@ -22,6 +22,9 @@ type Profile struct {
 	Env         map[string]string `json:"env"`
 	PathPrepend []string          `json:"path_prepend"`
 	Doctor      map[string]string `json:"doctor"`
+	// Logins maps a short name (e.g. "gws") to the login command run under this
+	// hat (e.g. "gws auth login"), so tokens land in this profile's config dir.
+	Logins map[string]string `json:"logins"`
 }
 
 type Config struct {
@@ -196,6 +199,69 @@ func cmdShell(cfg Config, name string) {
 	execUnder(name, prof, []string{shell})
 }
 
+// cmdLogin runs a profile's declared login commands wearing the hat, so each
+// CLI writes its token to this identity's config dir. Runs as subprocesses
+// (sequential, interactive) rather than exec, since there may be several.
+func cmdLogin(cfg Config, name, which string) {
+	prof := getProfile(cfg, name)
+	if len(prof.Logins) == 0 {
+		die(fmt.Sprintf("profile '%s' declares no logins. Add a \"logins\" map to profiles.json, e.g. {\"gws\": \"gws auth login\"}.", name))
+	}
+	var targets []string
+	if which != "" {
+		if _, ok := prof.Logins[which]; !ok {
+			keys := make([]string, 0, len(prof.Logins))
+			for k := range prof.Logins {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			die(fmt.Sprintf("profile '%s' has no login '%s'. Available: %s", name, which, strings.Join(keys, ", ")))
+		}
+		targets = []string{which}
+	} else {
+		for k := range prof.Logins {
+			targets = append(targets, k)
+		}
+		sort.Strings(targets)
+	}
+
+	// build the hat's environment once
+	env := os.Environ()
+	extra := map[string]string{}
+	for k, v := range prof.Env {
+		extra[k] = expand(v)
+	}
+	extra["HATS_PROFILE"] = name
+	if len(prof.PathPrepend) > 0 {
+		parts := make([]string, 0, len(prof.PathPrepend))
+		for _, p := range prof.PathPrepend {
+			parts = append(parts, expand(p))
+		}
+		extra["PATH"] = strings.Join(parts, ":") + ":" + os.Getenv("PATH")
+	}
+	for k, v := range extra {
+		env = append(env, k+"="+v)
+	}
+
+	failed := 0
+	for _, t := range targets {
+		cmdline := prof.Logins[t]
+		fmt.Fprintf(os.Stderr, "\n\033[1mhats login %s: %s\033[0m  (%s)\n", name, t, cmdline)
+		c := exec.Command("sh", "-c", cmdline)
+		c.Env = env
+		c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+		if err := c.Run(); err != nil {
+			failed++
+			fmt.Fprintf(os.Stderr, "\033[31m  ✗ %s login failed: %v\033[0m\n", t, err)
+		}
+	}
+	if failed > 0 {
+		fmt.Fprintf(os.Stderr, "\n%d login(s) failed. Re-run: hats login %s [name]\n", failed, name)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stderr, "\n\033[32mall logins for '%s' completed. Verify with: hats doctor %s\033[0m\n", name, name)
+}
+
 func cmdWhich() {
 	p := os.Getenv("HATS_PROFILE")
 	if p == "" {
@@ -283,6 +349,7 @@ usage:
   hats env <profile> [--json]    print eval-able exports (or JSON for tooling)
   hats run <profile> -- <cmd>    run command under an identity (true exec)
   hats shell <profile>           subshell under an identity
+  hats login <profile> [name]    log declared CLIs in, wearing the hat
   hats which                     active profile
   hats doctor [profile]          check credential dirs
 
@@ -339,6 +406,15 @@ func main() {
 			die("usage: hats shell <profile>")
 		}
 		cmdShell(cfg, args[1])
+	case "login":
+		if len(args) < 2 {
+			die("usage: hats login <profile> [name]   (logs each declared CLI in, wearing the hat)")
+		}
+		which := ""
+		if len(args) > 2 {
+			which = args[2]
+		}
+		cmdLogin(cfg, args[1], which)
 	case "doctor":
 		name := ""
 		if len(args) > 1 {
