@@ -1,0 +1,33 @@
+{
+  "name": "manyhats",
+  "version": "0.1.1",
+  "description": "Identity profiles for agents and shells \u2014 direnv scopes environments to directories; hats scopes them to identities.",
+  "bin": {
+    "hats": "./hats.js"
+  },
+  "files": [
+    "hats.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrismcdermut/hats.git"
+  },
+  "homepage": "https://github.com/chrismcdermut/hats#readme",
+  "keywords": [
+    "identity",
+    "profiles",
+    "env",
+    "direnv",
+    "agents",
+    "claude-code",
+    "credentials",
+    "multi-account"
+  ],
+  "author": "Chris McDermut",
+  "license": "MIT"
+}

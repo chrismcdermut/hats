@@ -1,0 +1,21 @@
+version: 2
+project_name: hats
+builds:
+  - main: .
+    binary: hats
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags: ["-s -w -X main.version={{.Version}}"]
+brews:
+  - name: hats
+    repository:
+      owner: chrismcdermut
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/chrismcdermut/hats
+    description: Identity profiles for agents and shells
+    license: MIT
+    test: |
+      assert_match "identity profiles", shell_output("#{bin}/hats --help")
