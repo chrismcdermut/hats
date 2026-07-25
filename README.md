@@ -2,6 +2,11 @@
 
 **Identity profiles for agents and shells.**
 
+[![npm](https://img.shields.io/npm/v/manyhats?label=npm&color=cb3837)](https://www.npmjs.com/package/manyhats)
+[![Homebrew](https://img.shields.io/badge/brew-chrismcdermut%2Ftap%2Fhats-f9a825)](https://github.com/chrismcdermut/homebrew-tap)
+[![Release](https://img.shields.io/github/v/release/chrismcdermut/hats?label=release)](https://github.com/chrismcdermut/hats/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 direnv scopes environments to *directories*. hats scopes them to *identities*.
 
 ## What is a hat?
@@ -41,9 +46,13 @@ inherit it for free.
 brew install chrismcdermut/tap/hats
 # or
 go install github.com/chrismcdermut/hats@latest
-# or (Node shim)
+# or (npm: downloads the release binary for your platform)
 npm install -g manyhats
 ```
+
+- Homebrew tap: [github.com/chrismcdermut/homebrew-tap](https://github.com/chrismcdermut/homebrew-tap)
+- npm: [npmjs.com/package/manyhats](https://www.npmjs.com/package/manyhats)
+- Prebuilt binaries: [GitHub Releases](https://github.com/chrismcdermut/hats/releases)
 
 ## Quickstart
 
@@ -57,7 +66,7 @@ Notice the pattern: **same variables, different directory per identity.** That
   "profiles": {
     "personal": {
       "description": "Personal projects",
-      "env": {
+      "environment": {
         "CLAUDE_CONFIG_DIR": "~/.claude",
         "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-personal",
         "VERCEL_CONFIG_DIR": "~/.config/vercel-personal",
@@ -66,7 +75,7 @@ Notice the pattern: **same variables, different directory per identity.** That
     },
     "dayjob": {
       "description": "Employer",
-      "env": {
+      "environment": {
         "CLAUDE_CONFIG_DIR": "~/.claude-dayjob",
         "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-dayjob",
         "VERCEL_CONFIG_DIR": "~/.config/vercel-dayjob",
@@ -82,7 +91,7 @@ Notice the pattern: **same variables, different directory per identity.** That
     },
     "client": {
       "description": "Client contract",
-      "env": {
+      "environment": {
         "CLAUDE_CONFIG_DIR": "~/.claude-client",
         "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-client",
         "VERCEL_CONFIG_DIR": "~/.config/vercel-client",
@@ -133,7 +142,7 @@ the dayjob account, because dayjob's tokens are simply not on its path.
 
 ## Logging in (populating a hat)
 
-A hat's `env` only *points* at credential directories. You still have to put
+A hat's `environment` only *points* at credential directories. You still have to put
 credentials in them, and the golden rule is:
 
 > **Always log in through the hat.** `hats wear <profile> -- <cli> login`
@@ -178,7 +187,7 @@ exec vercel-real "$@"
 ```
 
 Put the shim dir in the profile's `path_prepend`, and `VERCEL_CONFIG_DIR` in
-its `env`. Then vercel logins land per-hat like everything else. (A future hats
+its `environment`. Then vercel logins land per-hat like everything else. (A future hats
 release will generate these shims for you.)
 
 ## Launcher aliases (Claude Code, Codex, ...)
@@ -246,13 +255,13 @@ dayjob  -  Employer
 1 check(s) not ok (○ empty = not yet logged in, ✗ missing = path absent)
 ```
 
-The checks are **derived from `env`**: every config-dir env var (`CLAUDE_CONFIG_DIR`,
+The checks are **derived from `environment`**: every config-dir env var (`CLAUDE_CONFIG_DIR`,
 `VERCEL_CONFIG_DIR`, ...) automatically becomes a "does this dir exist and is it
 non-empty?" check, so you don't restate your paths. The optional `doctor` map is
 just **refinements**: point a label at the specific file that proves a login
 (`vercel` -> `auth.json` rather than the dir), or add a check that has no env var
 (a `personal` hat using the default `~/.claude`). In practice that's one or two
-lines per profile, not a parallel copy of `env`.
+lines per profile, not a parallel copy of `environment`.
 
 ## For orchestrators
 
@@ -272,7 +281,7 @@ when you wear that hat, instead of globally:
 
 ```json
 "kanda": {
-  "env": { "CLAUDE_CONFIG_DIR": "~/.claude-kanda" },
+  "environment": { "CLAUDE_CONFIG_DIR": "~/.claude-kanda" },
   "env_files": ["~/.env-kanda-secrets"]
 }
 ```

@@ -19,8 +19,12 @@ import (
 var version = "dev"
 
 type Profile struct {
-	Description string            `json:"description"`
-	Env         map[string]string `json:"env"`
+	Description string `json:"description"`
+	// Environment is the set of environment variables the hat injects: the process
+	// environment it "wears" (config-dir pointers plus any other vars). Config-dir
+	// vars here also seed `hats doctor`. `env` is accepted as a legacy alias.
+	Environment map[string]string `json:"environment"`
+	Env         map[string]string `json:"env"` // legacy alias for environment
 	PathPrepend []string          `json:"path_prepend"`
 	// Doctor refines the auto-derived credential checks. Base checks come from the
 	// env config-dir vars (see doctorChecks); entries here override a derived path
@@ -134,9 +138,22 @@ func loadEnvFile(path string) map[string]string {
 	return out
 }
 
+// envMap returns the hat's declared environment variables, merging the legacy
+// `env` field under the current `environment` field (environment wins on clash).
+func (p Profile) envMap() map[string]string {
+	m := map[string]string{}
+	for k, v := range p.Env {
+		m[k] = v
+	}
+	for k, v := range p.Environment {
+		m[k] = v
+	}
+	return m
+}
+
 // resolveEnv returns the hat's extra environment: env_files first (secrets),
-// then Env (which may override), all with ~ / $HOME expanded. PATH/HATS_PROFILE
-// are handled separately by callers.
+// then declared environment (which may override), all with ~ / $HOME expanded.
+// PATH/HATS_PROFILE are handled separately by callers.
 func resolveEnv(prof Profile) map[string]string {
 	env := map[string]string{}
 	for _, f := range prof.EnvFiles {
@@ -144,7 +161,7 @@ func resolveEnv(prof Profile) map[string]string {
 			env[k] = v
 		}
 	}
-	for k, v := range prof.Env {
+	for k, v := range prof.envMap() {
 		env[k] = expand(v)
 	}
 	return env
@@ -391,7 +408,7 @@ func doctorLabel(name string) string {
 // (a specific login-proof file, or a check with no corresponding env var).
 func doctorChecks(prof Profile) map[string]string {
 	checks := map[string]string{}
-	for name, val := range prof.Env {
+	for name, val := range prof.envMap() {
 		if isPathVal(val) && isConfigDirVar(name) {
 			checks[doctorLabel(name)] = val
 		}
@@ -469,7 +486,7 @@ func isPathVal(v string) bool {
 // appear here but are subtracted out by the caller when they belong to self.
 func pathFragments(prof Profile) map[string]bool {
 	set := map[string]bool{}
-	for _, v := range prof.Env {
+	for _, v := range prof.envMap() {
 		if !isPathVal(v) {
 			continue
 		}

@@ -1,12 +1,16 @@
 {
   "name": "manyhats",
-  "version": "0.1.1",
+  "version": "0.4.0",
   "description": "Identity profiles for agents and shells - direnv scopes environments to directories; hats scopes them to identities.",
   "bin": {
     "hats": "./hats.js"
   },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
   "files": [
     "hats.js",
+    "install.js",
     "README.md",
     "LICENSE"
   ],
