@@ -18,9 +18,9 @@ command "wearing" a hat and it inherits that identity's environment, so every
 CLI it touches reads the right credential directory automatically.
 
 ```sh
-hats wear client -- vercel deploy   # deploys with your client's Vercel account
+hats wear project -- vercel deploy   # deploys with your project's Vercel account
 hats wear dayjob -- vercel deploy   # same command, employer's account
-hats wear client -- claude          # an agent session, born scoped to the client
+hats wear project -- claude          # an agent session, born scoped to the project
 ```
 
 (`hats wear` is the flagship verb; `hats run` is a familiar alias - use whichever.)
@@ -86,7 +86,7 @@ Notice the pattern: **same variables, different directory per identity.** That
         "RENDER_CLI_CONFIG_PATH": "~/.config/render-personal"
       },
       "aliases": ["ccp", "gwsp", "verp", "rendp"],
-      "reachable": ["client"]
+      "reachable": ["project"]
     },
     "dayjob": {
       "description": "Employer",
@@ -112,14 +112,14 @@ Notice the pattern: **same variables, different directory per identity.** That
       },
       "aliases": ["ccd", "gwsd", "verd", "rendd"]
     },
-    "client": {
-      "description": "Client contract",
+    "project": {
+      "description": "Side project / OSS",
       "environment": {
-        "CLAUDE_CONFIG_DIR": "~/.claude-client",
-        "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-client",
-        "VERCEL_CONFIG_DIR": "~/.config/vercel-client"
+        "CLAUDE_CONFIG_DIR": "~/.claude-project",
+        "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-project",
+        "VERCEL_CONFIG_DIR": "~/.config/vercel-project"
       },
-      "env_files": ["~/.env-client"],
+      "env_files": ["~/.env-project"],
       "aliases": ["ccc", "gwsc", "verc"]
     }
   }
@@ -138,14 +138,14 @@ lists other profiles this hat may deliberately reach.
 The last two feed [`hats boundary`](#boundaries-hats-boundary): it doesn't store
 a block list, it *derives* one. For a `personal` session it reads the **other**
 profiles' config-dir names and `aliases` as `foreign_paths` / `foreign_aliases`
-to block - except `client`, which `personal` marked `reachable`, so that one
+to block - except `project`, which `personal` marked `reachable`, so that one
 stays allowed. Nothing about the boundary is hand-maintained; it all falls out
 of the profiles above.
 
 <details>
 <summary><b>A real 3-identity setup (redacted)</b> - what the author actually runs</summary>
 
-Three identities - `personal`, an employer (`dayjob`), a `client` - each scoping
+Three identities - `personal`, an employer (`dayjob`), a `project` - each scoping
 the same eight CLIs to its own directories, with per-identity secrets and browser
 routing. This is the whole config, only the names/ids changed:
 
@@ -173,7 +173,7 @@ routing. This is the whole config, only the names/ids changed:
       },
       "env_files": ["~/.env-personal"],
       "aliases": ["ccp", "gwsp", "verp", "rendp", "neonp", "dopplerp"],
-      "reachable": ["client"]
+      "reachable": ["project"]
     },
     "dayjob": {
       "description": "Employer",
@@ -197,17 +197,17 @@ routing. This is the whole config, only the names/ids changed:
       "env_files": ["~/.env-dayjob"],
       "aliases": ["ccd", "gwsd", "verd", "rendd", "neond", "dopplerd"]
     },
-    "client": {
-      "description": "Client contract",
+    "project": {
+      "description": "Side project / OSS",
       "environment": {
-        "CLAUDE_CONFIG_DIR": "~/.claude-client",
-        "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-client",
-        "GOOGLE_WORKSPACE_PROJECT_ID": "gcp-client",
-        "RENDER_CLI_CONFIG_PATH": "~/.config/render-client",
-        "VERCEL_CONFIG_DIR": "~/.config/vercel-client",
-        "CLOUDSDK_CONFIG": "~/.config/gcloud-client",
-        "NEON_CONFIG_DIR": "~/.config/neon-client",
-        "DOPPLER_CONFIG_DIR": "~/.config/doppler-client",
+        "CLAUDE_CONFIG_DIR": "~/.claude-project",
+        "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-project",
+        "GOOGLE_WORKSPACE_PROJECT_ID": "gcp-project",
+        "RENDER_CLI_CONFIG_PATH": "~/.config/render-project",
+        "VERCEL_CONFIG_DIR": "~/.config/vercel-project",
+        "CLOUDSDK_CONFIG": "~/.config/gcloud-project",
+        "NEON_CONFIG_DIR": "~/.config/neon-project",
+        "DOPPLER_CONFIG_DIR": "~/.config/doppler-project",
         "BROWSER": "~/.local/bin/browse-as-hat",
         "CHROME_PROFILE_DIR": "Profile 3"
       },
@@ -216,7 +216,7 @@ routing. This is the whole config, only the names/ids changed:
         "gws": "gws auth login", "vercel": "vercel login", "render": "render login",
         "gcloud": "gcloud auth login", "neon": "neonctl auth", "doppler": "doppler login"
       },
-      "env_files": ["~/.env-client"],
+      "env_files": ["~/.env-project"],
       "aliases": ["ccc", "gwsc", "verc", "rendc", "neonc", "dopplerc"]
     }
   }
@@ -232,18 +232,18 @@ A few non-obvious bits:
   Google Workspace CLI.
 - **`env_files`** hold each identity's API tokens (gitignored, `chmod 600`),
   loaded *only* under that hat - so a stray token is never global.
-- **`personal` marks `reachable: ["client"]`** (the author's own contract work),
-  so a personal session may deliberately reach the client hat; `dayjob` marks
+- **`personal` marks `reachable: ["project"]`**,
+  so a personal session may deliberately reach the project hat; `dayjob` marks
   nothing, so the employer identity is hard-walled from the others.
 - `personal` needs a one-line `doctor` (it uses the default `~/.claude`, so there's
-  no `CLAUDE_CONFIG_DIR` to derive from); `dayjob`/`client` need none.
+  no `CLAUDE_CONFIG_DIR` to derive from); `dayjob`/`project` need none.
 
 </details>
 
 Every identity scopes the *same* tools (Claude, Google Workspace, Vercel,
 Render) - only the directory changes (`gws-personal` vs `gws-dayjob` vs
-`gws-client`). So `hats wear dayjob -- gws ...` reads the employer's Google
-Workspace; `hats wear client -- gws ...` reads the client's. Same command, same
+`gws-project`). So `hats wear dayjob -- gws ...` reads the employer's Google
+Workspace; `hats wear project -- gws ...` reads the project's. Same command, same
 tool, different identity, by construction.
 
 Then:
@@ -251,13 +251,13 @@ Then:
 ```sh
 hats init                          # scaffold config + generate wrapper shims
 hats ls                            # list hats (* = the one you're wearing)
-hats wear client -- vercel deploy   # one command under an identity
-hats shell client                  # a subshell wearing the hat
-hats login client                  # log this hat's CLIs in (writes to its dirs)
+hats wear project -- vercel deploy   # one command under an identity
+hats shell project                  # a subshell wearing the hat
+hats login project                  # log this hat's CLIs in (writes to its dirs)
 hats which                         # what hat is this process wearing?
 hats doctor                        # is every identity aligned and logged in?
-hats env client                    # eval-able exports, for scripts
-hats env client --json             # machine-readable, for orchestrators
+hats env project                    # eval-able exports, for scripts
+hats env project --json             # machine-readable, for orchestrators
 ```
 
 ## What `wear` actually does
@@ -273,12 +273,18 @@ and exit codes flow naturally). Every subprocess inherits the hat.
   (`GH_CONFIG_DIR`), GitLab (`GLAB_CONFIG_DIR`), and more. Point each at a
   `<tool>-<identity>` dir and that CLI is scoped for free - so a `work` hat and a
   `personal` hat can each hold their own GitHub login, for example.
+- It doesn't have to be a config *dir*. A tool scoped by a config *file* works
+  too - point AWS at per-identity files (`AWS_SHARED_CREDENTIALS_FILE`,
+  `AWS_CONFIG_FILE`) - and so does a tool scoped by a plain *token*: drop a
+  per-identity `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` in the hat's
+  `env_files` and wrangler is scoped with no dir at all. If a CLI reads *any* env
+  var for its credentials, a hat can scope it.
 - CLIs without one (vercel, neon) need a small wrapper shim that translates an
   env var into their `--config` flag. Put shims in a `path_prepend` dir and
   hats will front-load them onto `PATH`.
 
 Because each identity's credentials live in their own directory, isolation is
-structural: a process wearing the client hat cannot accidentally deploy with
+structural: a process wearing the project hat cannot accidentally deploy with
 the dayjob account, because dayjob's tokens are simply not on its path.
 
 ## Logging in (populating a hat)
@@ -294,14 +300,14 @@ credentials in them, and the golden rule is:
 So to set up a new hat, log each CLI in wearing it:
 
 ```sh
-hats wear client -- gws auth login        # -> ~/.config/gws-client
-hats wear client -- vercel login          # -> ~/.config/vercel-client (needs shim, see below)
-hats wear client -- render login          # -> ~/.config/render-client
-hats wear client -- gcloud auth login     # -> ~/.config/gcloud-client
-hats wear client -- neonctl auth          # -> ~/.config/neon-client (needs shim)
-hats wear client -- doppler login         # -> ~/.config/doppler-client
+hats wear project -- gws auth login        # -> ~/.config/gws-project
+hats wear project -- vercel login          # -> ~/.config/vercel-project (needs shim, see below)
+hats wear project -- render login          # -> ~/.config/render-project
+hats wear project -- gcloud auth login     # -> ~/.config/gcloud-project
+hats wear project -- neonctl auth          # -> ~/.config/neon-project (needs shim)
+hats wear project -- doppler login         # -> ~/.config/doppler-project
 
-hats doctor client                       # confirm each one landed
+hats doctor project                       # confirm each one landed
 ```
 
 Each is a normal browser OAuth flow; the only thing hats changes is *where the
@@ -314,7 +320,7 @@ definition travels).
 
 CLIs with a native config-dir env var (gcloud, doppler, render, gws, Claude
 Code) work out of the box. But **vercel and neon ignore env vars** and always
-use a fixed default location, so `hats wear client -- vercel login` would still
+use a fixed default location, so `hats wear project -- vercel login` would still
 clobber your default vercel login. The fix is a tiny wrapper on `PATH` that
 translates an env var into their `--config` flag:
 
@@ -349,15 +355,15 @@ alias cc='hats wear personal -- claude'
 alias ccy='hats wear personal -- claude --dangerously-skip-permissions'
 alias ccd='hats wear dayjob -- claude'
 alias ccdy='hats wear dayjob -- claude --dangerously-skip-permissions'
-alias ccc='hats wear client -- claude'
-alias cccy='hats wear client -- claude --dangerously-skip-permissions'
+alias ccc='hats wear project -- claude'
+alias cccy='hats wear project -- claude --dangerously-skip-permissions'
 
 # Codex: same pattern
 alias cx='hats wear personal -- codex'
 alias cxdy='hats wear dayjob -- codex --full-auto'
 
 # or ad hoc, no alias needed
-hats wear client -- claude -p "summarize this repo"
+hats wear project -- claude -p "summarize this repo"
 ```
 
 The same trick works for any CLI, so you can reach a specific identity's
@@ -368,16 +374,16 @@ Vercel/Render/Google Workspace without wearing the whole hat. Name them
 # Google Workspace per identity (gws<initial>)
 alias gwsp='hats wear personal -- gws'
 alias gwsd='hats wear dayjob -- gws'
-alias gwsc='hats wear client -- gws'
+alias gwsc='hats wear project -- gws'
 
 # Vercel / Render per identity
 alias verp='hats wear personal -- vercel'
-alias verc='hats wear client -- vercel'
+alias verc='hats wear project -- vercel'
 alias rendd='hats wear dayjob -- render'
-alias rendc='hats wear client -- render'
+alias rendc='hats wear project -- render'
 ```
 
-Now `gwsc drive files list` runs Google Workspace as the client, and
+Now `gwsc drive files list` runs Google Workspace as the project, and
 `rendd deploy` deploys Render as your employer, from any directory. Because
 these delegate to `hats run`, the identity still lives only in profiles.json:
 every alias is a thin pointer with zero credentials or paths baked in.
@@ -449,7 +455,7 @@ target dir is on `PATH` ahead of the real CLIs (put it in a profile's
 orchestrator can spawn each worker wearing the right hat:
 
 ```js
-const { env } = JSON.parse(execSync("hats env client --json"));
+const { env } = JSON.parse(execSync("hats env project --json"));
 spawn(agentCmd, { env: { ...process.env, ...env } });
 ```
 
@@ -485,8 +491,8 @@ emits the identity signals belonging to *other* hats, derived from
 ```sh
 hats boundary dayjob --json
 # { "profile": "dayjob", "reachable": [],
-#   "foreign_profiles": ["client", "personal"],
-#   "foreign_paths":   ["gws-client", "vercel-personal", ...],
+#   "foreign_profiles": ["project", "personal"],
+#   "foreign_paths":   ["gws-project", "vercel-personal", ...],
 #   "foreign_aliases": ["gwsc", "vercelp", ...] }
 ```
 
@@ -497,7 +503,7 @@ hats boundary dayjob --json
   path fragments).
 - **reachable** lets a hat sanction specific crossings: list them and they move
   from foreign to allowed, so a combined session can touch, say, personal and
-  client but nothing else.
+  project but nothing else.
 
 ### Sanctioning a crossing with `reachable`
 
@@ -508,11 +514,11 @@ a third:
 ```json
 "personal": {
   "environment": { "CLAUDE_CONFIG_DIR": "~/.claude", "...": "..." },
-  "reachable": ["client"]
+  "reachable": ["project"]
 }
 ```
 
-Now `hats boundary personal --json` drops `client` from `foreign_profiles` (and
+Now `hats boundary personal --json` drops `project` from `foreign_profiles` (and
 its paths/aliases from the block lists), while any other hat stays foreign.
 
 ### Enforcing it: a PreToolUse hook

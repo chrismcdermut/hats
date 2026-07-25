@@ -380,6 +380,7 @@ var configDirLabels = map[string]string{
 	"DOPPLER_CONFIG_DIR":              "doppler",
 	"GH_CONFIG_DIR":                   "gh",
 	"GLAB_CONFIG_DIR":                 "glab",
+	"AWS_SHARED_CREDENTIALS_FILE":     "aws", // the keys file; its presence = logged in
 }
 
 // loginProofFile maps a config-dir env var to the file inside that dir whose
