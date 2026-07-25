@@ -84,7 +84,9 @@ Notice the pattern: **same variables, different directory per identity.** That
         "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-personal",
         "VERCEL_CONFIG_DIR": "~/.config/vercel-personal",
         "RENDER_CLI_CONFIG_PATH": "~/.config/render-personal"
-      }
+      },
+      "aliases": ["ccp", "gwsp", "verp", "rendp"],
+      "reachable": ["client"]
     },
     "dayjob": {
       "description": "Employer",
@@ -117,7 +119,8 @@ Notice the pattern: **same variables, different directory per identity.** That
         "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-client",
         "VERCEL_CONFIG_DIR": "~/.config/vercel-client"
       },
-      "env_files": ["~/.env-client"]
+      "env_files": ["~/.env-client"],
+      "aliases": ["ccc", "gwsc", "verc"]
     }
   }
 }
@@ -129,9 +132,15 @@ minimum. Field by field: `path_prepend` front-loads dirs onto `PATH` (for the
 wrapper shims below); `env_files` are gitignored secret files loaded only under
 this hat; `doctor` refines the auto-derived credential checks (see
 [Doctor](#doctor)); `logins` declares each CLI's login command for
-`hats login`; `aliases` lists this identity's launcher aliases (used by
-[`hats boundary`](#boundaries-hats-boundary)); and `reachable` (not shown) lists
-other profiles this hat may deliberately reach.
+`hats login`; `aliases` lists this identity's launcher aliases; and `reachable`
+lists other profiles this hat may deliberately reach.
+
+The last two feed [`hats boundary`](#boundaries-hats-boundary): it doesn't store
+a block list, it *derives* one. For a `personal` session it reads the **other**
+profiles' config-dir names and `aliases` as `foreign_paths` / `foreign_aliases`
+to block - except `client`, which `personal` marked `reachable`, so that one
+stays allowed. Nothing about the boundary is hand-maintained; it all falls out
+of the profiles above.
 
 Every identity scopes the *same* tools (Claude, Google Workspace, Vercel,
 Render) - only the directory changes (`gws-personal` vs `gws-dayjob` vs
