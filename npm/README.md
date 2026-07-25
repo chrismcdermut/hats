@@ -5,6 +5,7 @@
 [![npm](https://img.shields.io/npm/v/manyhats?label=npm&color=cb3837)](https://www.npmjs.com/package/manyhats)
 [![Homebrew](https://img.shields.io/badge/brew-chrismcdermut%2Ftap%2Fhats-f9a825)](https://github.com/chrismcdermut/homebrew-tap)
 [![Release](https://img.shields.io/github/v/release/chrismcdermut/hats?label=release)](https://github.com/chrismcdermut/hats/releases)
+[![Stars](https://img.shields.io/github/stars/chrismcdermut/hats?style=flat)](https://github.com/chrismcdermut/hats/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 direnv scopes environments to *directories*. hats scopes them to *identities*.
@@ -29,6 +30,14 @@ agents (Claude Code, Codex, your own orchestrator) across multiple clients,
 employers, or businesses, the question isn't "which folder am I in," it's
 "whose credentials is this process holding?" hats makes the answer structural:
 every process is born wearing exactly one hat.
+
+**You don't need multiple agent accounts for this to matter.** hats scopes
+*every* credential-bearing CLI it touches - Vercel, Google Workspace, Render,
+gcloud, Neon, Doppler - not just your agent's config. The moment you have a
+personal Vercel *and* a client's, or your own Google Workspace *and* a
+contract's, a bare `vercel deploy` is ambiguous. One agent login, many
+identities underneath: freelancers, moonlighters, and anyone juggling personal
+plus contract work all have this.
 
 ## Why not just prompt the agent?
 
@@ -79,29 +88,46 @@ Notice the pattern: **same variables, different directory per identity.** That
         "CLAUDE_CONFIG_DIR": "~/.claude-dayjob",
         "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-dayjob",
         "VERCEL_CONFIG_DIR": "~/.config/vercel-dayjob",
-        "RENDER_CLI_CONFIG_PATH": "~/.config/render-dayjob"
+        "RENDER_CLI_CONFIG_PATH": "~/.config/render-dayjob",
+        "CLOUDSDK_CONFIG": "~/.config/gcloud-dayjob",
+        "NEON_CONFIG_DIR": "~/.config/neon-dayjob",
+        "DOPPLER_CONFIG_DIR": "~/.config/doppler-dayjob"
       },
+      "path_prepend": ["~/.local/bin"],
       "env_files": ["~/.env-dayjob"],
       "doctor": {
         "claude": "~/.claude-dayjob/.claude.json",
-        "gws": "~/.config/gws-dayjob",
         "vercel": "~/.config/vercel-dayjob/auth.json"
       },
-      "logins": { "gws": "gws auth login", "vercel": "vercel login" }
+      "logins": {
+        "gws": "gws auth login",
+        "vercel": "vercel login",
+        "render": "render login"
+      },
+      "aliases": ["ccd", "gwsd", "verd", "rendd"]
     },
     "client": {
       "description": "Client contract",
       "environment": {
         "CLAUDE_CONFIG_DIR": "~/.claude-client",
         "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-client",
-        "VERCEL_CONFIG_DIR": "~/.config/vercel-client",
-        "RENDER_CLI_CONFIG_PATH": "~/.config/render-client"
+        "VERCEL_CONFIG_DIR": "~/.config/vercel-client"
       },
       "env_files": ["~/.env-client"]
     }
   }
 }
 ```
+
+Only `description` and `environment` are required; everything else is optional.
+`dayjob` above is a fully loaded profile - the others are trimmed to show the
+minimum. Field by field: `path_prepend` front-loads dirs onto `PATH` (for the
+wrapper shims below); `env_files` are gitignored secret files loaded only under
+this hat; `doctor` refines the auto-derived credential checks (see
+[Doctor](#doctor)); `logins` declares each CLI's login command for
+`hats login`; `aliases` lists this identity's launcher aliases (used by
+[`hats boundary`](#boundaries-hats-boundary)); and `reachable` (not shown) lists
+other profiles this hat may deliberately reach.
 
 Every identity scopes the *same* tools (Claude, Google Workspace, Vercel,
 Render) - only the directory changes (`gws-personal` vs `gws-dayjob` vs
