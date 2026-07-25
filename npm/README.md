@@ -260,6 +260,27 @@ const { env } = JSON.parse(execSync("hats env client --json"));
 spawn(agentCmd, { env: { ...process.env, ...env } });
 ```
 
+
+## Secrets (identity-scoped)
+
+Put a hat's tokens in a gitignored `env_files` secret file so they load **only**
+when you wear that hat, instead of globally:
+
+```json
+"kanda": {
+  "env": { "CLAUDE_CONFIG_DIR": "~/.claude-kanda" },
+  "env_files": ["~/.env-kanda-secrets"]
+}
+```
+
+```sh
+# ~/.env-kanda-secrets  (chmod 600, never committed)
+export JIRA_WORK_BASIC_AUTH="..."
+```
+
+Now `hats run kanda -- ...` has the token; `hats run personal` does not. Missing
+files are skipped, so `profiles.json` stays portable (secrets are per-machine).
+
 ## The boundary ladder
 
 hats is rung 1 of a 3-rung ladder:

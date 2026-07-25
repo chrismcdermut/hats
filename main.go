@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"syscall"
@@ -25,6 +26,10 @@ type Profile struct {
 	// Logins maps a short name (e.g. "gws") to the login command run under this
 	// hat (e.g. "gws auth login"), so tokens land in this profile's config dir.
 	Logins map[string]string `json:"logins"`
+	// EnvFiles are gitignored KEY=VALUE files (secrets) sourced ONLY when wearing
+	// this hat, so tokens stay identity-scoped instead of global. Loaded before
+	// Env (so Env can override). Lines: `export KEY="val"`, `KEY=val`, `# comment`.
+	EnvFiles []string `json:"env_files"`
 }
 
 type Config struct {
@@ -85,11 +90,56 @@ func profileNames(cfg Config) []string {
 	return names
 }
 
+var envLineRe = regexp.MustCompile(`^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$`)
+
+// loadEnvFile parses a simple KEY=VALUE / export KEY="VALUE" secrets file.
+// Missing files are silently skipped (a secret file may not exist on every machine).
+func loadEnvFile(path string) map[string]string {
+	out := map[string]string{}
+	data, err := os.ReadFile(expand(path))
+	if err != nil {
+		return out // absent/unreadable: skip quietly
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		t := strings.TrimSpace(line)
+		if t == "" || strings.HasPrefix(t, "#") {
+			continue
+		}
+		m := envLineRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		val := strings.TrimSpace(m[2])
+		// strip one layer of matching quotes
+		if len(val) >= 2 && (val[0] == '"' || val[0] == '\'') && val[len(val)-1] == val[0] {
+			val = val[1 : len(val)-1]
+		}
+		out[m[1]] = val
+	}
+	return out
+}
+
+// resolveEnv returns the hat's extra environment: env_files first (secrets),
+// then Env (which may override), all with ~ / $HOME expanded. PATH/HATS_PROFILE
+// are handled separately by callers.
+func resolveEnv(prof Profile) map[string]string {
+	env := map[string]string{}
+	for _, f := range prof.EnvFiles {
+		for k, v := range loadEnvFile(f) {
+			env[k] = v
+		}
+	}
+	for k, v := range prof.Env {
+		env[k] = expand(v)
+	}
+	return env
+}
+
 // applyEnv mutates this process's environment to wear the given hat,
 // so a subsequent exec inherits it (and PATH lookups use the new PATH).
 func applyEnv(name string, prof Profile) {
-	for k, v := range prof.Env {
-		os.Setenv(k, expand(v))
+	for k, v := range resolveEnv(prof) {
+		os.Setenv(k, v)
 	}
 	if len(prof.PathPrepend) > 0 {
 		parts := make([]string, 0, len(prof.PathPrepend))
@@ -134,11 +184,8 @@ func shellQuote(s string) string {
 
 func cmdEnv(cfg Config, name string, asJSON bool) {
 	prof := getProfile(cfg, name)
+	resolved := resolveEnv(prof) // env_files + Env, expanded
 	if asJSON {
-		resolved := map[string]string{}
-		for k, v := range prof.Env {
-			resolved[k] = expand(v)
-		}
 		prepend := make([]string, 0, len(prof.PathPrepend))
 		for _, p := range prof.PathPrepend {
 			prepend = append(prepend, expand(p))
@@ -151,13 +198,13 @@ func cmdEnv(cfg Config, name string, asJSON bool) {
 		fmt.Println(string(out))
 		return
 	}
-	keys := make([]string, 0, len(prof.Env))
-	for k := range prof.Env {
+	keys := make([]string, 0, len(resolved))
+	for k := range resolved {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		fmt.Printf("export %s=%s\n", k, shellQuote(expand(prof.Env[k])))
+		fmt.Printf("export %s=%s\n", k, shellQuote(resolved[k]))
 	}
 	if len(prof.PathPrepend) > 0 {
 		parts := make([]string, 0, len(prof.PathPrepend))
@@ -227,10 +274,7 @@ func cmdLogin(cfg Config, name, which string) {
 
 	// build the hat's environment once
 	env := os.Environ()
-	extra := map[string]string{}
-	for k, v := range prof.Env {
-		extra[k] = expand(v)
-	}
+	extra := resolveEnv(prof) // env_files + Env
 	extra["HATS_PROFILE"] = name
 	if len(prof.PathPrepend) > 0 {
 		parts := make([]string, 0, len(prof.PathPrepend))
