@@ -138,6 +138,7 @@ tool, different identity, by construction.
 Then:
 
 ```sh
+hats init                          # scaffold config + generate wrapper shims
 hats ls                            # list hats (* = the one you're wearing)
 hats wear client -- vercel deploy   # one command under an identity
 hats shell client                  # a subshell wearing the hat
@@ -213,8 +214,9 @@ exec vercel-real "$@"
 ```
 
 Put the shim dir in the profile's `path_prepend`, and `VERCEL_CONFIG_DIR` in
-its `environment`. Then vercel logins land per-hat like everything else. (A future hats
-release will generate these shims for you.)
+its `environment`. Then vercel logins land per-hat like everything else. You
+don't have to write these by hand - **`hats init` generates the vercel/neon
+shims for you** (see [Doctor](#doctor)).
 
 ## Launcher aliases (Claude Code, Codex, ...)
 
@@ -281,13 +283,47 @@ dayjob  -  Employer
 1 check(s) not ok (○ empty = not yet logged in, ✗ missing = path absent)
 ```
 
-The checks are **derived from `environment`**: every config-dir env var (`CLAUDE_CONFIG_DIR`,
-`VERCEL_CONFIG_DIR`, ...) automatically becomes a "does this dir exist and is it
-non-empty?" check, so you don't restate your paths. The optional `doctor` map is
-just **refinements**: point a label at the specific file that proves a login
-(`vercel` -> `auth.json` rather than the dir), or add a check that has no env var
-(a `personal` hat using the default `~/.claude`). In practice that's one or two
-lines per profile, not a parallel copy of `environment`.
+**You don't list doctor checks - hats reads them from `environment`.** Three
+rules, in order:
+
+1. **Every config-dir env var becomes a check.** `GOOGLE_WORKSPACE_CLI_CONFIG_DIR`,
+   `RENDER_CLI_CONFIG_PATH`, `NEON_CONFIG_DIR`, ... each turns into "does this dir
+   exist and is it non-empty?" You never restate these paths.
+2. **For CLIs where a dir can exist while logged-out, hats checks the login-proof
+   file inside it instead** - `VERCEL_CONFIG_DIR` -> `auth.json`, `CLAUDE_CONFIG_DIR`
+   -> `.claude.json`. This is built in, so `vercel`/`claude` derive as *file*
+   checks automatically. Nothing to configure.
+
+That's why a fully-scoped profile needs **no `doctor` block at all** - every check
+comes from its env vars.
+
+3. **The `doctor` map is only the leftovers rules 1-2 can't produce:** a CLI with
+   *no* config-dir env var (a hat that uses the default `~/.claude`, so there's
+   nothing to derive from), or a non-standard proof path. Most profiles need zero
+   lines here; a `personal` hat on the default Claude dir needs exactly one:
+
+   ```json
+   "doctor": { "claude": "~/.claude.json" }
+   ```
+
+   Entries here override the derived check for that label, or add a new one.
+
+So `doctor` is an *exceptions list*, not a copy of your paths. If you see more than
+a line or two, something is probably restating what `environment` already implies.
+
+### Generating the shims: `hats init`
+
+```sh
+hats init                 # scaffold ~/.config/hats/profiles.json (if absent)
+                          # + generate the vercel/neon wrapper shims into ~/.local/bin
+hats init --dir ~/bin     # write shims somewhere else
+hats init --force         # overwrite existing shims
+```
+
+`hats init` writes the `vercel`/`neonctl` shims described above so you don't hand-
+write them. It never overwrites an existing file unless `--force`. Make sure the
+target dir is on `PATH` ahead of the real CLIs (put it in a profile's
+`path_prepend`).
 
 ## For orchestrators
 
