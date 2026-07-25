@@ -38,7 +38,7 @@ jobs:
         run: npm install -g npm@latest && npm --version
       - name: version from tag
         working-directory: npm
-        run: npm version --no-git-tag-version "${GITHUB_REF_NAME#v}"
+        run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
       - name: publish
         working-directory: npm
         run: npm publish --access public --provenance
