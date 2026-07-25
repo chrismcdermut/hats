@@ -142,6 +142,104 @@ to block - except `client`, which `personal` marked `reachable`, so that one
 stays allowed. Nothing about the boundary is hand-maintained; it all falls out
 of the profiles above.
 
+<details>
+<summary><b>A real 3-identity setup (redacted)</b> - what the author actually runs</summary>
+
+Three identities - `personal`, an employer (`dayjob`), a `client` - each scoping
+the same eight CLIs to its own directories, with per-identity secrets and browser
+routing. This is the whole config, only the names/ids changed:
+
+```json
+{
+  "profiles": {
+    "personal": {
+      "description": "Personal",
+      "environment": {
+        "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-personal",
+        "GOOGLE_WORKSPACE_PROJECT_ID": "gcp-personal",
+        "RENDER_CLI_CONFIG_PATH": "~/.config/render-personal",
+        "VERCEL_CONFIG_DIR": "~/.config/vercel-personal",
+        "CLOUDSDK_CONFIG": "~/.config/gcloud-personal",
+        "NEON_CONFIG_DIR": "~/.config/neon-personal",
+        "DOPPLER_CONFIG_DIR": "~/.config/doppler-personal",
+        "BROWSER": "~/.local/bin/browse-as-hat",
+        "CHROME_PROFILE_DIR": "Profile 1"
+      },
+      "path_prepend": ["~/.local/bin"],
+      "doctor": { "claude": "~/.claude.json" },
+      "logins": {
+        "gws": "gws auth login", "vercel": "vercel login", "render": "render login",
+        "gcloud": "gcloud auth login", "neon": "neonctl auth", "doppler": "doppler login"
+      },
+      "env_files": ["~/.env-personal"],
+      "aliases": ["ccp", "gwsp", "verp", "rendp", "neonp", "dopplerp"],
+      "reachable": ["client"]
+    },
+    "dayjob": {
+      "description": "Employer",
+      "environment": {
+        "CLAUDE_CONFIG_DIR": "~/.claude-dayjob",
+        "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-dayjob",
+        "GOOGLE_WORKSPACE_PROJECT_ID": "gcp-dayjob",
+        "RENDER_CLI_CONFIG_PATH": "~/.config/render-dayjob",
+        "VERCEL_CONFIG_DIR": "~/.config/vercel-dayjob",
+        "CLOUDSDK_CONFIG": "~/.config/gcloud-dayjob",
+        "NEON_CONFIG_DIR": "~/.config/neon-dayjob",
+        "DOPPLER_CONFIG_DIR": "~/.config/doppler-dayjob",
+        "BROWSER": "~/.local/bin/browse-as-hat",
+        "CHROME_PROFILE_DIR": "Profile 2"
+      },
+      "path_prepend": ["~/.local/bin"],
+      "logins": {
+        "gws": "gws auth login", "vercel": "vercel login", "render": "render login",
+        "gcloud": "gcloud auth login", "neon": "neonctl auth", "doppler": "doppler login"
+      },
+      "env_files": ["~/.env-dayjob"],
+      "aliases": ["ccd", "gwsd", "verd", "rendd", "neond", "dopplerd"]
+    },
+    "client": {
+      "description": "Client contract",
+      "environment": {
+        "CLAUDE_CONFIG_DIR": "~/.claude-client",
+        "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-client",
+        "GOOGLE_WORKSPACE_PROJECT_ID": "gcp-client",
+        "RENDER_CLI_CONFIG_PATH": "~/.config/render-client",
+        "VERCEL_CONFIG_DIR": "~/.config/vercel-client",
+        "CLOUDSDK_CONFIG": "~/.config/gcloud-client",
+        "NEON_CONFIG_DIR": "~/.config/neon-client",
+        "DOPPLER_CONFIG_DIR": "~/.config/doppler-client",
+        "BROWSER": "~/.local/bin/browse-as-hat",
+        "CHROME_PROFILE_DIR": "Profile 3"
+      },
+      "path_prepend": ["~/.local/bin"],
+      "logins": {
+        "gws": "gws auth login", "vercel": "vercel login", "render": "render login",
+        "gcloud": "gcloud auth login", "neon": "neonctl auth", "doppler": "doppler login"
+      },
+      "env_files": ["~/.env-client"],
+      "aliases": ["ccc", "gwsc", "verc", "rendc", "neonc", "dopplerc"]
+    }
+  }
+}
+```
+
+A few non-obvious bits:
+
+- **`BROWSER` + `CHROME_PROFILE_DIR`** - a tiny `browse-as-hat` script opens OAuth
+  flows in that identity's *own* Chrome profile, so a login started under one hat
+  can't land in another hat's browser session.
+- **`GOOGLE_WORKSPACE_PROJECT_ID`** - the GCP project backing that identity's
+  Google Workspace CLI.
+- **`env_files`** hold each identity's API tokens (gitignored, `chmod 600`),
+  loaded *only* under that hat - so a stray token is never global.
+- **`personal` marks `reachable: ["client"]`** (the author's own contract work),
+  so a personal session may deliberately reach the client hat; `dayjob` marks
+  nothing, so the employer identity is hard-walled from the others.
+- `personal` needs a one-line `doctor` (it uses the default `~/.claude`, so there's
+  no `CLAUDE_CONFIG_DIR` to derive from); `dayjob`/`client` need none.
+
+</details>
+
 Every identity scopes the *same* tools (Claude, Google Workspace, Vercel,
 Render) - only the directory changes (`gws-personal` vs `gws-dayjob` vs
 `gws-client`). So `hats wear dayjob -- gws ...` reads the employer's Google
