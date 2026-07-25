@@ -269,7 +269,10 @@ and exit codes flow naturally). Every subprocess inherits the hat.
 
 - Most CLIs support this natively via a config-dir env var: gcloud
   (`CLOUDSDK_CONFIG`), doppler (`DOPPLER_CONFIG_DIR`), render
-  (`RENDER_CLI_CONFIG_PATH`), Claude Code (`CLAUDE_CONFIG_DIR`), and more.
+  (`RENDER_CLI_CONFIG_PATH`), Claude Code (`CLAUDE_CONFIG_DIR`), GitHub
+  (`GH_CONFIG_DIR`), GitLab (`GLAB_CONFIG_DIR`), and more. Point each at a
+  `<tool>-<identity>` dir and that CLI is scoped for free - so a `work` hat and a
+  `personal` hat can each hold their own GitHub login, for example.
 - CLIs without one (vercel, neon) need a small wrapper shim that translates an
   env var into their `--config` flag. Put shims in a `path_prepend` dir and
   hats will front-load them onto `PATH`.

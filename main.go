@@ -378,6 +378,8 @@ var configDirLabels = map[string]string{
 	"CLOUDSDK_CONFIG":                 "gcloud",
 	"NEON_CONFIG_DIR":                 "neon",
 	"DOPPLER_CONFIG_DIR":              "doppler",
+	"GH_CONFIG_DIR":                   "gh",
+	"GLAB_CONFIG_DIR":                 "glab",
 }
 
 // loginProofFile maps a config-dir env var to the file inside that dir whose
@@ -387,6 +389,7 @@ var configDirLabels = map[string]string{
 var loginProofFile = map[string]string{
 	"VERCEL_CONFIG_DIR": "auth.json",
 	"CLAUDE_CONFIG_DIR": ".claude.json",
+	"GH_CONFIG_DIR":     "hosts.yml", // gh writes authed hosts here; config.yml exists pre-login
 }
 
 // isConfigDirVar reports whether an env var names a CLI's config directory (so a
