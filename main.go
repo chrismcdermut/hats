@@ -391,7 +391,7 @@ func usage() {
 usage:
   hats ls                        list profiles (* = active)
   hats env <profile> [--json]    print eval-able exports (or JSON for tooling)
-  hats run <profile> -- <cmd>    run command under an identity (true exec)
+  hats wear <profile> -- <cmd>   run command under an identity (alias: run)
   hats shell <profile>           subshell under an identity
   hats login <profile> [name]    log declared CLIs in, wearing the hat
   hats which                     active profile
@@ -435,9 +435,9 @@ func main() {
 			die("usage: hats env <profile> [--json]")
 		}
 		cmdEnv(cfg, name, asJSON)
-	case "run":
+	case "wear", "run": // 'wear' is the flagship spelling; 'run' is a familiar alias
 		if len(args) < 2 {
-			die("usage: hats run <profile> -- <command...>")
+			die("usage: hats wear <profile> -- <command...>")
 		}
 		name := args[1]
 		argv := args[2:]

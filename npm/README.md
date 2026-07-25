@@ -12,10 +12,12 @@ command "wearing" a hat and it inherits that identity's environment, so every
 CLI it touches reads the right credential directory automatically.
 
 ```sh
-hats run client -- vercel deploy    # deploys with your client's Vercel account
-hats run dayjob -- vercel deploy    # same command, employer's account
-hats run client -- claude           # an agent session, born scoped to the client
+hats wear client -- vercel deploy   # deploys with your client's Vercel account
+hats wear dayjob -- vercel deploy   # same command, employer's account
+hats wear client -- claude          # an agent session, born scoped to the client
 ```
+
+(`hats wear` is the flagship verb; `hats run` is a familiar alias - use whichever.)
 
 Agents roam directories, but they must never roam identities. If you run coding
 agents (Claude Code, Codex, your own orchestrator) across multiple clients,
@@ -47,6 +49,9 @@ npm install -g manyhats
 
 Define your hats in `~/.config/hats/profiles.json`:
 
+Notice the pattern: **same variables, different directory per identity.** That
+`-<identity>` suffix is the whole idea.
+
 ```json
 {
   "profiles": {
@@ -54,7 +59,9 @@ Define your hats in `~/.config/hats/profiles.json`:
       "description": "Personal projects",
       "env": {
         "CLAUDE_CONFIG_DIR": "~/.claude",
-        "VERCEL_CONFIG_DIR": "~/.config/vercel-personal"
+        "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-personal",
+        "VERCEL_CONFIG_DIR": "~/.config/vercel-personal",
+        "RENDER_CLI_CONFIG_PATH": "~/.config/render-personal"
       }
     },
     "dayjob": {
@@ -62,24 +69,16 @@ Define your hats in `~/.config/hats/profiles.json`:
       "env": {
         "CLAUDE_CONFIG_DIR": "~/.claude-dayjob",
         "GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "~/.config/gws-dayjob",
-        "GOOGLE_WORKSPACE_PROJECT_ID": "gws-dayjob-cli",
         "VERCEL_CONFIG_DIR": "~/.config/vercel-dayjob",
-        "RENDER_CLI_CONFIG_PATH": "~/.config/render-dayjob",
-        "CLOUDSDK_CONFIG": "~/.config/gcloud-dayjob"
+        "RENDER_CLI_CONFIG_PATH": "~/.config/render-dayjob"
       },
+      "env_files": ["~/.env-dayjob"],
       "doctor": {
         "claude": "~/.claude-dayjob/.claude.json",
         "gws": "~/.config/gws-dayjob",
-        "vercel": "~/.config/vercel-dayjob/auth.json",
-        "render": "~/.config/render-dayjob",
-        "gcloud": "~/.config/gcloud-dayjob"
+        "vercel": "~/.config/vercel-dayjob/auth.json"
       },
-      "logins": {
-        "gws": "gws auth login",
-        "vercel": "vercel login",
-        "render": "render login",
-        "gcloud": "gcloud auth login"
-      }
+      "logins": { "gws": "gws auth login", "vercel": "vercel login" }
     },
     "client": {
       "description": "Client contract",
@@ -89,26 +88,23 @@ Define your hats in `~/.config/hats/profiles.json`:
         "VERCEL_CONFIG_DIR": "~/.config/vercel-client",
         "RENDER_CLI_CONFIG_PATH": "~/.config/render-client"
       },
-      "logins": {
-        "gws": "gws auth login",
-        "vercel": "vercel login",
-        "render": "render login"
-      }
+      "env_files": ["~/.env-client"]
     }
   }
 }
 ```
 
-A hat can bundle as many or as few CLIs as you use. `personal` above scopes
-just Claude and Vercel; `dayjob` scopes Claude, Google Workspace, Vercel,
-Render, and gcloud. Add a CLI to an identity by adding its config-dir env var
-to that profile, nothing else.
+Every identity scopes the *same* tools (Claude, Google Workspace, Vercel,
+Render) - only the directory changes (`gws-personal` vs `gws-dayjob` vs
+`gws-client`). So `hats wear dayjob -- gws ...` reads the employer's Google
+Workspace; `hats wear client -- gws ...` reads the client's. Same command, same
+tool, different identity, by construction.
 
 Then:
 
 ```sh
 hats ls                            # list hats (* = the one you're wearing)
-hats run client -- vercel deploy   # one command under an identity
+hats wear client -- vercel deploy   # one command under an identity
 hats shell client                  # a subshell wearing the hat
 hats login client                  # log this hat's CLIs in (writes to its dirs)
 hats which                         # what hat is this process wearing?
@@ -117,9 +113,9 @@ hats env client                    # eval-able exports, for scripts
 hats env client --json             # machine-readable, for orchestrators
 ```
 
-## What `run` actually does
+## What `wear` actually does
 
-No magic: `hats run <profile> -- <cmd>` sets the profile's env vars, prepends
+No magic: `hats wear <profile> -- <cmd>` sets the profile's env vars, prepends
 any `path_prepend` dirs to `PATH`, sets `HATS_PROFILE`, and then **execs** the
 command (a true exec: hats replaces itself with your command, so signals, tty,
 and exit codes flow naturally). Every subprocess inherits the hat.
@@ -140,7 +136,7 @@ the dayjob account, because dayjob's tokens are simply not on its path.
 A hat's `env` only *points* at credential directories. You still have to put
 credentials in them, and the golden rule is:
 
-> **Always log in through the hat.** `hats run <profile> -- <cli> login`
+> **Always log in through the hat.** `hats wear <profile> -- <cli> login`
 > writes the token to that profile's directory. A bare `<cli> login` writes to
 > the CLI's default location and silently ends up under the wrong (or no)
 > identity.
@@ -148,12 +144,12 @@ credentials in them, and the golden rule is:
 So to set up a new hat, log each CLI in wearing it:
 
 ```sh
-hats run client -- gws auth login        # -> ~/.config/gws-client
-hats run client -- vercel login          # -> ~/.config/vercel-client (needs shim, see below)
-hats run client -- render login          # -> ~/.config/render-client
-hats run client -- gcloud auth login     # -> ~/.config/gcloud-client
-hats run client -- neonctl auth          # -> ~/.config/neon-client (needs shim)
-hats run client -- doppler login         # -> ~/.config/doppler-client
+hats wear client -- gws auth login        # -> ~/.config/gws-client
+hats wear client -- vercel login          # -> ~/.config/vercel-client (needs shim, see below)
+hats wear client -- render login          # -> ~/.config/render-client
+hats wear client -- gcloud auth login     # -> ~/.config/gcloud-client
+hats wear client -- neonctl auth          # -> ~/.config/neon-client (needs shim)
+hats wear client -- doppler login         # -> ~/.config/doppler-client
 
 hats doctor client                       # confirm each one landed
 ```
@@ -168,7 +164,7 @@ definition travels).
 
 CLIs with a native config-dir env var (gcloud, doppler, render, gws, Claude
 Code) work out of the box. But **vercel and neon ignore env vars** and always
-use a fixed default location, so `hats run client -- vercel login` would still
+use a fixed default location, so `hats wear client -- vercel login` would still
 clobber your default vercel login. The fix is a tiny wrapper on `PATH` that
 translates an env var into their `--config` flag:
 
@@ -188,26 +184,26 @@ release will generate these shims for you.)
 ## Launcher aliases (Claude Code, Codex, ...)
 
 Hats carry all the identity; aliases are just muscle memory. Point short
-launchers at `hats run`:
+launchers at `hats wear`:
 
 A convention that scales: `cc` + an identity initial, plus `y` for yolo
 (skip-permissions) sessions:
 
 ```sh
 # Claude Code: cc<initial>, add y for autonomous mode
-alias cc='hats run personal -- claude'
-alias ccy='hats run personal -- claude --dangerously-skip-permissions'
-alias ccd='hats run dayjob -- claude'
-alias ccdy='hats run dayjob -- claude --dangerously-skip-permissions'
-alias ccc='hats run client -- claude'
-alias cccy='hats run client -- claude --dangerously-skip-permissions'
+alias cc='hats wear personal -- claude'
+alias ccy='hats wear personal -- claude --dangerously-skip-permissions'
+alias ccd='hats wear dayjob -- claude'
+alias ccdy='hats wear dayjob -- claude --dangerously-skip-permissions'
+alias ccc='hats wear client -- claude'
+alias cccy='hats wear client -- claude --dangerously-skip-permissions'
 
 # Codex: same pattern
-alias cx='hats run personal -- codex'
-alias cxdy='hats run dayjob -- codex --full-auto'
+alias cx='hats wear personal -- codex'
+alias cxdy='hats wear dayjob -- codex --full-auto'
 
 # or ad hoc, no alias needed
-hats run client -- claude -p "summarize this repo"
+hats wear client -- claude -p "summarize this repo"
 ```
 
 The same trick works for any CLI, so you can reach a specific identity's
@@ -216,15 +212,15 @@ Vercel/Render/Google Workspace without wearing the whole hat. Name them
 
 ```sh
 # Google Workspace per identity (gws<initial>)
-alias gwsp='hats run personal -- gws'
-alias gwsd='hats run dayjob -- gws'
-alias gwsc='hats run client -- gws'
+alias gwsp='hats wear personal -- gws'
+alias gwsd='hats wear dayjob -- gws'
+alias gwsc='hats wear client -- gws'
 
 # Vercel / Render per identity
-alias verp='hats run personal -- vercel'
-alias verc='hats run client -- vercel'
-alias rendd='hats run dayjob -- render'
-alias rendc='hats run client -- render'
+alias verp='hats wear personal -- vercel'
+alias verc='hats wear client -- vercel'
+alias rendd='hats wear dayjob -- render'
+alias rendc='hats wear client -- render'
 ```
 
 Now `gwsc drive files list` runs Google Workspace as the client, and
@@ -278,7 +274,7 @@ when you wear that hat, instead of globally:
 export JIRA_WORK_BASIC_AUTH="..."
 ```
 
-Now `hats run kanda -- ...` has the token; `hats run personal` does not. Missing
+Now `hats wear kanda -- ...` has the token; `hats wear personal` does not. Missing
 files are skipped, so `profiles.json` stays portable (secrets are per-machine).
 
 ## The boundary ladder
