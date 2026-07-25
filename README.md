@@ -65,7 +65,11 @@ npm install -g manyhats
 
 ## Quickstart
 
-Define your hats in `~/.config/hats/profiles.json`:
+Run `hats init` to drop a starter `~/.config/hats/profiles.json` (and generate
+the wrapper shims) in place, then edit it. Prefer to write it by hand? It lives
+at `~/.config/hats/profiles.json` - or set `HATS_CONFIG` to point hats at a
+different directory (handy for a sandbox, CI, or keeping config in a dotfiles
+repo).
 
 Notice the pattern: **same variables, different directory per identity.** That
 `-<identity>` suffix is the whole idea.
@@ -206,11 +210,14 @@ translates an env var into their `--config` flag:
 
 ```sh
 #!/bin/sh
-# ~/.local/bin/vercel  (shim; real binary must be elsewhere on PATH)
-if [ -n "$VERCEL_CONFIG_DIR" ]; then
-  exec vercel-real --global-config "$VERCEL_CONFIG_DIR" "$@"
-fi
-exec vercel-real "$@"
+# ~/.local/bin/vercel  (shim). Finds the real vercel on PATH (skipping itself),
+# so there's nothing to rename. This is exactly what `hats init` generates.
+selfdir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+real=; IFS=:
+for d in $PATH; do [ "$d" = "$selfdir" ] && continue; [ -x "$d/vercel" ] && { real=$d/vercel; break; }; done
+unset IFS
+if [ -n "$VERCEL_CONFIG_DIR" ]; then exec "$real" --global-config "$VERCEL_CONFIG_DIR" "$@"; fi
+exec "$real" "$@"
 ```
 
 Put the shim dir in the profile's `path_prepend`, and `VERCEL_CONFIG_DIR` in
@@ -272,7 +279,8 @@ env blocks, and the aliases contain zero identity information.
 
 `hats doctor` audits every hat: does each credential path exist, and is it
 non-empty (logged in)? It's the "is everything aligned" check you'd otherwise
-do by hand after every laptop migration, reauth, or 2am login mishap.
+do by hand after every laptop migration, reauth, or 2am login mishap. It exits
+non-zero if any check fails, so you can gate CI or a shell startup on it.
 
 ```
 dayjob  -  Employer
@@ -381,11 +389,65 @@ hats boundary dayjob --json
   from foreign to allowed, so a combined session can touch, say, personal and
   client but nothing else.
 
-A tiny PreToolUse hook (or any harness's equivalent) feeds a command through
-this and blocks on a hit. Because the block set is computed from
-`profiles.json`, adding or renaming a hat updates every guard for free. This is
-mistake/casual-misuse prevention, not hard isolation (a heuristic is defeatable
-by obfuscation) - it's the middle rung below.
+### Sanctioning a crossing with `reachable`
+
+By default every other hat is foreign. Add `reachable` to allow specific ones -
+useful for a session that legitimately spans two identities but must stay out of
+a third:
+
+```json
+"personal": {
+  "environment": { "CLAUDE_CONFIG_DIR": "~/.claude", "...": "..." },
+  "reachable": ["client"]
+}
+```
+
+Now `hats boundary personal --json` drops `client` from `foreign_profiles` (and
+its paths/aliases from the block lists), while any other hat stays foreign.
+
+### Enforcing it: a PreToolUse hook
+
+Point a guard at `hats boundary` from your harness. For Claude Code, add a
+`PreToolUse` hook to the hat's `settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "$HOME/.local/bin/hats-guard" }] }
+    ]
+  }
+}
+```
+
+The guard reads the command, asks `hats boundary` what's foreign for the active
+hat, and blocks on a hit. A complete, minimal version:
+
+```python
+#!/usr/bin/env python3
+# hats-guard: block cross-identity commands in the active hat's session.
+# exit 2 = block (stderr shown to the model), exit 0 = allow.
+import json, os, re, subprocess, sys
+cmd = (json.load(sys.stdin).get("tool_input") or {}).get("command", "")
+prof = os.environ.get("HATS_PROFILE")
+if not (cmd and prof):
+    sys.exit(0)  # not wearing a hat, or nothing to check
+b = json.loads(subprocess.run(["hats", "boundary", prof, "--json"],
+                              capture_output=True, text=True).stdout)
+hit = next((p for p in b["foreign_paths"] if p in cmd), None)
+if not hit and b["foreign_aliases"]:
+    m = re.search(r"(?<![\w-])(" + "|".join(map(re.escape, b["foreign_aliases"])) + r")(?![\w-])", cmd)
+    hit = m.group(1) if m else None
+if hit:
+    sys.stderr.write(f"blocked: '{hit}' belongs to another identity (this is a '{prof}' session)\n")
+    sys.exit(2)
+```
+
+Because the block set is computed from `profiles.json`, adding or renaming a hat
+updates every guard for free. This is mistake/casual-misuse prevention, not hard
+isolation (a heuristic is defeatable by obfuscation) - it's the middle rung
+below.
 
 ## The boundary ladder
 

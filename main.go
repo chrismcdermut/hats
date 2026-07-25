@@ -217,6 +217,10 @@ func shellQuote(s string) string {
 func cmdEnv(cfg Config, name string, asJSON bool) {
 	prof := getProfile(cfg, name)
 	resolved := resolveEnv(prof) // env_files + Env, expanded
+	// HATS_PROFILE is part of the hat's environment, so it belongs in both the
+	// shell exports and the --json env map (orchestrators spawn workers from the
+	// latter and need the identity marker for `hats which` / boundary hooks).
+	resolved["HATS_PROFILE"] = name
 	if asJSON {
 		prepend := make([]string, 0, len(prof.PathPrepend))
 		for _, p := range prof.PathPrepend {
@@ -245,7 +249,6 @@ func cmdEnv(cfg Config, name string, asJSON bool) {
 		}
 		fmt.Printf("export PATH=%s\":$PATH\"\n", shellQuote(strings.Join(parts, ":")))
 	}
-	fmt.Printf("export HATS_PROFILE=%s\n", shellQuote(name))
 }
 
 // execUnder replaces this process with the command, wearing the hat.
@@ -708,6 +711,7 @@ usage:
   hats init [--dir D] [--force]  scaffold config + generate wrapper shims
 
 config: %s
+       (override the directory with the HATS_CONFIG env var)
 `, configPath())
 }
 
