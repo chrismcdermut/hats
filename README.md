@@ -246,6 +246,14 @@ dayjob  -  Employer
 1 check(s) not ok (○ empty = not yet logged in, ✗ missing = path absent)
 ```
 
+The checks are **derived from `env`**: every config-dir env var (`CLAUDE_CONFIG_DIR`,
+`VERCEL_CONFIG_DIR`, ...) automatically becomes a "does this dir exist and is it
+non-empty?" check, so you don't restate your paths. The optional `doctor` map is
+just **refinements**: point a label at the specific file that proves a login
+(`vercel` -> `auth.json` rather than the dir), or add a check that has no env var
+(a `personal` hat using the default `~/.claude`). In practice that's one or two
+lines per profile, not a parallel copy of `env`.
+
 ## For orchestrators
 
 `hats env <profile> --json` emits the resolved environment as JSON, so an

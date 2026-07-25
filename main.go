@@ -22,7 +22,11 @@ type Profile struct {
 	Description string            `json:"description"`
 	Env         map[string]string `json:"env"`
 	PathPrepend []string          `json:"path_prepend"`
-	Doctor      map[string]string `json:"doctor"`
+	// Doctor refines the auto-derived credential checks. Base checks come from the
+	// env config-dir vars (see doctorChecks); entries here override a derived path
+	// by label (e.g. point "vercel" at auth.json instead of the dir) or add a check
+	// with no env var (e.g. personal "claude" -> ~/.claude.json). Usually 1-2 lines.
+	Doctor map[string]string `json:"doctor"`
 	// Logins maps a short name (e.g. "gws") to the login command run under this
 	// hat (e.g. "gws auth login"), so tokens land in this profile's config dir.
 	Logins map[string]string `json:"logins"`
@@ -344,6 +348,60 @@ func checkPath(p string) string {
 	return "ok"
 }
 
+// configDirLabels gives friendly doctor labels for well-known config-dir env
+// vars whose name doesn't obviously map to the CLI (CLOUDSDK -> gcloud, etc.).
+var configDirLabels = map[string]string{
+	"CLAUDE_CONFIG_DIR":               "claude",
+	"GOOGLE_WORKSPACE_CLI_CONFIG_DIR": "gws",
+	"VERCEL_CONFIG_DIR":               "vercel",
+	"RENDER_CLI_CONFIG_PATH":          "render",
+	"CLOUDSDK_CONFIG":                 "gcloud",
+	"NEON_CONFIG_DIR":                 "neon",
+	"DOPPLER_CONFIG_DIR":              "doppler",
+}
+
+// isConfigDirVar reports whether an env var names a CLI's config directory (so a
+// doctor check can be derived from it). Avoids checking incidental path vars like
+// BROWSER by requiring a config-dir naming convention (or a known name).
+func isConfigDirVar(name string) bool {
+	if _, ok := configDirLabels[name]; ok {
+		return true
+	}
+	return strings.HasSuffix(name, "_CONFIG_DIR") ||
+		strings.HasSuffix(name, "_CONFIG_PATH") ||
+		strings.HasSuffix(name, "_CONFIG")
+}
+
+func doctorLabel(name string) string {
+	if l, ok := configDirLabels[name]; ok {
+		return l
+	}
+	l := name
+	for _, suf := range []string{"_CLI_CONFIG_DIR", "_CONFIG_DIR", "_CONFIG_PATH", "_CONFIG", "_DIR"} {
+		if strings.HasSuffix(l, suf) {
+			l = strings.TrimSuffix(l, suf)
+			break
+		}
+	}
+	return strings.ToLower(strings.ReplaceAll(l, "_", "-"))
+}
+
+// doctorChecks builds the label->path checks for a profile: base checks derived
+// from its env config-dir vars, then Doctor entries applied as overrides/additions
+// (a specific login-proof file, or a check with no corresponding env var).
+func doctorChecks(prof Profile) map[string]string {
+	checks := map[string]string{}
+	for name, val := range prof.Env {
+		if isPathVal(val) && isConfigDirVar(name) {
+			checks[doctorLabel(name)] = val
+		}
+	}
+	for label, path := range prof.Doctor {
+		checks[label] = path
+	}
+	return checks
+}
+
 func cmdDoctor(cfg Config, name string) {
 	targets := profileNames(cfg)
 	if name != "" {
@@ -358,13 +416,14 @@ func cmdDoctor(cfg Config, name string) {
 			desc = "  — " + prof.Description
 		}
 		fmt.Printf("\n%s%s\n", n, desc)
-		if len(prof.Doctor) == 0 {
-			fmt.Println("  (no doctor checks defined)")
+		checks := doctorChecks(prof)
+		if len(checks) == 0 {
+			fmt.Println("  (no credential dirs to check)")
 			continue
 		}
-		labels := make([]string, 0, len(prof.Doctor))
+		labels := make([]string, 0, len(checks))
 		width := 0
-		for l := range prof.Doctor {
+		for l := range checks {
 			labels = append(labels, l)
 			if len(l) > width {
 				width = len(l)
@@ -372,7 +431,7 @@ func cmdDoctor(cfg Config, name string) {
 		}
 		sort.Strings(labels)
 		for _, label := range labels {
-			p := prof.Doctor[label]
+			p := checks[label]
 			state := checkPath(p)
 			icon := "✓"
 			suffix := ""
