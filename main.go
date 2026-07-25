@@ -30,6 +30,17 @@ type Profile struct {
 	// this hat, so tokens stay identity-scoped instead of global. Loaded before
 	// Env (so Env can override). Lines: `export KEY="val"`, `KEY=val`, `# comment`.
 	EnvFiles []string `json:"env_files"`
+	// Reachable lists other profiles this hat is allowed to reach explicitly
+	// (e.g. a personal hat that may also touch nina). `hats boundary` treats
+	// self + reachable as allowed and everything else as foreign, so a boundary
+	// guard can permit sanctioned crossings while blocking the rest.
+	Reachable []string `json:"reachable"`
+	// Aliases are the launcher aliases that belong to this identity (gwsn, vern,
+	// ccn, ...). Consumed by `hats boundary` to flag cross-identity aliases, and
+	// available for future alias generation. Hyphenated <cli>-<identity> aliases
+	// need not be listed: they equal config-dir basenames and are already caught
+	// as path fragments.
+	Aliases []string `json:"aliases"`
 }
 
 type Config struct {
@@ -385,6 +396,108 @@ func cmdDoctor(cfg Config, name string) {
 	os.Exit(1)
 }
 
+// isPathVal reports whether an env value looks like a filesystem path (so we can
+// derive a distinctive directory basename from it). Non-path values like
+// "Profile 9" or a project ID are ignored.
+func isPathVal(v string) bool {
+	return strings.HasPrefix(v, "~/") || strings.HasPrefix(v, "/") ||
+		strings.HasPrefix(v, "$HOME") || strings.HasPrefix(v, "${HOME}")
+}
+
+// pathFragments returns the distinctive directory basenames of a profile's
+// path-like env values, e.g. ~/.config/gws-nina -> "gws-nina", ~/.claude-nina
+// -> ".claude-nina". Shared values (e.g. ~/.local/bin/claude-browser) also
+// appear here but are subtracted out by the caller when they belong to self.
+func pathFragments(prof Profile) map[string]bool {
+	set := map[string]bool{}
+	for _, v := range prof.Env {
+		if !isPathVal(v) {
+			continue
+		}
+		b := filepath.Base(expand(v))
+		if b == "" || b == "/" || b == "." {
+			continue
+		}
+		set[b] = true
+	}
+	return set
+}
+
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// cmdBoundary emits, for a profile, the identity signals that belong to OTHER
+// (non-reachable) profiles: their config-dir path fragments, their launcher
+// aliases, and their profile names. A PreToolUse guard consumes this JSON so the
+// block set is derived from profiles.json rather than hand-maintained.
+func cmdBoundary(cfg Config, name string, asJSON bool) {
+	self := getProfile(cfg, name)
+	allowed := map[string]bool{name: true}
+	for _, r := range self.Reachable {
+		allowed[r] = true
+	}
+
+	// Path fragments and aliases claimed by self + reachable are NOT foreign
+	// (this drops shared values like claude-browser, and sanctioned crossings).
+	allowedFrags := map[string]bool{}
+	allowedAliases := map[string]bool{}
+	for pn, prof := range cfg.Profiles {
+		if !allowed[pn] {
+			continue
+		}
+		for f := range pathFragments(prof) {
+			allowedFrags[f] = true
+		}
+		for _, a := range prof.Aliases {
+			allowedAliases[a] = true
+		}
+	}
+
+	foreignProfiles := map[string]bool{}
+	foreignPaths := map[string]bool{}
+	foreignAliases := map[string]bool{}
+	for pn, prof := range cfg.Profiles {
+		if allowed[pn] {
+			continue
+		}
+		foreignProfiles[pn] = true
+		for f := range pathFragments(prof) {
+			if !allowedFrags[f] {
+				foreignPaths[f] = true
+			}
+		}
+		for _, a := range prof.Aliases {
+			if !allowedAliases[a] {
+				foreignAliases[a] = true
+			}
+		}
+	}
+
+	reach := append([]string{}, self.Reachable...)
+	sort.Strings(reach)
+	if asJSON {
+		out, _ := json.MarshalIndent(map[string]any{
+			"profile":          name,
+			"reachable":        reach,
+			"foreign_profiles": sortedKeys(foreignProfiles),
+			"foreign_paths":    sortedKeys(foreignPaths),
+			"foreign_aliases":  sortedKeys(foreignAliases),
+		}, "", "  ")
+		fmt.Println(string(out))
+		return
+	}
+	fmt.Printf("boundary for '%s' (reachable: %s)\n", name, strings.Join(reach, ", "))
+	fmt.Printf("  foreign profiles: %s\n", strings.Join(sortedKeys(foreignProfiles), " "))
+	fmt.Printf("  foreign paths:    %s\n", strings.Join(sortedKeys(foreignPaths), " "))
+	fmt.Printf("  foreign aliases:  %s\n", strings.Join(sortedKeys(foreignAliases), " "))
+}
+
 func usage() {
 	fmt.Printf(`hats — identity profiles for agents and shells
 
@@ -396,6 +509,7 @@ usage:
   hats login <profile> [name]    log declared CLIs in, wearing the hat
   hats which                     active profile
   hats doctor [profile]          check credential dirs
+  hats boundary <profile> [--json]  foreign identity signals (for a guard hook)
 
 config: %s
 `, configPath())
@@ -465,6 +579,21 @@ func main() {
 			name = args[1]
 		}
 		cmdDoctor(cfg, name)
+	case "boundary":
+		rest := args[1:]
+		asJSON := false
+		name := ""
+		for _, a := range rest {
+			if a == "--json" {
+				asJSON = true
+			} else if name == "" {
+				name = a
+			}
+		}
+		if name == "" {
+			die("usage: hats boundary <profile> [--json]")
+		}
+		cmdBoundary(cfg, name, asJSON)
 	default:
 		die(fmt.Sprintf("unknown command '%s' (try: hats help)", cmd))
 	}

@@ -277,13 +277,42 @@ export JIRA_WORK_BASIC_AUTH="..."
 Now `hats wear kanda -- ...` has the token; `hats wear personal` does not. Missing
 files are skipped, so `profiles.json` stays portable (secrets are per-machine).
 
+## Boundaries (`hats boundary`)
+
+Env injection makes the *default* identity correct, but a determined command can
+still reach another hat explicitly (`hats run other -- ...`, or another
+identity's alias). For sessions where that must be blocked, `hats boundary`
+emits the identity signals belonging to *other* hats, derived from
+`profiles.json`, so a guard never hand-maintains a block list:
+
+```sh
+hats boundary dayjob --json
+# { "profile": "dayjob", "reachable": [],
+#   "foreign_profiles": ["client", "personal"],
+#   "foreign_paths":   ["gws-client", "vercel-personal", ...],
+#   "foreign_aliases": ["gwsc", "vercelp", ...] }
+```
+
+- **foreign_paths** are the config-dir basenames of other hats (shared values
+  like a common browser are subtracted out automatically).
+- **foreign_aliases** come from each profile's optional `aliases` field (the
+  short launchers; hyphenated `<cli>-<identity>` aliases are already caught as
+  path fragments).
+- **reachable** lets a hat sanction specific crossings: list them and they move
+  from foreign to allowed, so a combined session can touch, say, personal and
+  client but nothing else.
+
+A tiny PreToolUse hook (or any harness's equivalent) feeds a command through
+this and blocks on a hit. Because the block set is computed from
+`profiles.json`, adding or renaming a hat updates every guard for free. This is
+mistake/casual-misuse prevention, not hard isolation (a heuristic is defeatable
+by obfuscation) - it's the middle rung below.
+
 ## The boundary ladder
 
-hats is rung 1 of a 3-rung ladder:
-
-1. **Mistake prevention** (hats): correct-by-default env injection.
-2. **Misuse prevention**: harness-level policy, e.g. Claude Code PreToolUse
-   hooks that block commands referencing other identities' credential paths.
+1. **Mistake prevention** (`hats wear`): correct-by-default env injection.
+2. **Misuse prevention** (`hats boundary` + a guard hook): block explicit
+   cross-identity reach, from a config-derived block list.
 3. **Compromise prevention**: OS-level isolation (separate users, containers).
 
 Most failures are rung-1 failures. Climb only as your threat model demands.
