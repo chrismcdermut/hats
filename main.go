@@ -309,19 +309,22 @@ func cmdLogin(cfg Config, name, which string, missingOnly bool) {
 		sort.Strings(targets)
 	}
 
-	if missingOnly {
+	// Default behavior: pass over CLIs that are already logged in (per the
+	// derived doctor checks), visibly. Naming a login always runs it; --all
+	// forces a full re-run. (runAll == !missingOnly semantics from dispatch.)
+	if missingOnly && which == "" {
 		checks := doctorChecks(prof)
 		kept := targets[:0]
 		for _, t := range targets {
 			if p, ok := checks[t]; ok && checkPath(p) == "ok" {
-				fmt.Fprintf(os.Stderr, "hats login %s: %s — already logged in (doctor ok), skipping\n", name, t)
+				fmt.Fprintf(os.Stderr, "hats login %s: ✓ %s — already logged in, pass (re-login: hats login %s %s, or --all)\n", name, t, name, t)
 				continue
 			}
 			kept = append(kept, t)
 		}
 		targets = kept
 		if len(targets) == 0 {
-			fmt.Fprintf(os.Stderr, "\nnothing missing for '%s' — all doctor checks pass.\n", name)
+			fmt.Fprintf(os.Stderr, "\nnothing to do for '%s' — every declared login already passes doctor.\n", name)
 			return
 		}
 	}
@@ -727,7 +730,7 @@ usage:
   hats env <profile> [--json]    print eval-able exports (or JSON for tooling)
   hats wear <profile> -- <cmd>   run command under an identity (alias: run)
   hats shell <profile>           subshell under an identity
-  hats login <profile> [name] [--missing]  log declared CLIs in (--missing = only ones not yet logged in)
+  hats login <profile> [name] [--all]  log CLIs in (already-logged-in ones pass; --all re-runs)
   hats which                     active profile
   hats doctor [profile]          check credential dirs
   hats boundary <profile> [--json]  foreign identity signals (for a guard hook)
@@ -793,23 +796,26 @@ func main() {
 		cmdShell(cfg, args[1])
 	case "login":
 		rest := args[1:]
-		missingOnly := false
+		skipLoggedIn := true // default: pass over already-logged-in CLIs
 		var pos []string
 		for _, a := range rest {
-			if a == "--missing" || a == "-m" {
-				missingOnly = true
-			} else {
+			switch a {
+			case "--all", "-a":
+				skipLoggedIn = false // force full re-run
+			case "--missing", "-m":
+				skipLoggedIn = true // legacy alias of the default
+			default:
 				pos = append(pos, a)
 			}
 		}
 		if len(pos) < 1 {
-			die("usage: hats login <profile> [name] [--missing]   (logs declared CLIs in; --missing skips ones whose doctor check passes)")
+			die("usage: hats login <profile> [name] [--all]   (already-logged-in CLIs pass by default; --all re-runs everything)")
 		}
 		which := ""
 		if len(pos) > 1 {
 			which = pos[1]
 		}
-		cmdLogin(cfg, pos[0], which, missingOnly)
+		cmdLogin(cfg, pos[0], which, skipLoggedIn)
 	case "doctor":
 		name := ""
 		if len(args) > 1 {
