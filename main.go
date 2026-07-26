@@ -284,7 +284,9 @@ func cmdShell(cfg Config, name string) {
 // cmdLogin runs a profile's declared login commands wearing the hat, so each
 // CLI writes its token to this identity's config dir. Runs as subprocesses
 // (sequential, interactive) rather than exec, since there may be several.
-func cmdLogin(cfg Config, name, which string) {
+// With missingOnly, logins whose doctor check already passes are skipped, so
+// re-runs only do what's actually needed (idempotent-ish; doctor is a heuristic).
+func cmdLogin(cfg Config, name, which string, missingOnly bool) {
 	prof := getProfile(cfg, name)
 	if len(prof.Logins) == 0 {
 		die(fmt.Sprintf("profile '%s' declares no logins. Add a \"logins\" map to profiles.json, e.g. {\"gws\": \"gws auth login\"}.", name))
@@ -305,6 +307,23 @@ func cmdLogin(cfg Config, name, which string) {
 			targets = append(targets, k)
 		}
 		sort.Strings(targets)
+	}
+
+	if missingOnly {
+		checks := doctorChecks(prof)
+		kept := targets[:0]
+		for _, t := range targets {
+			if p, ok := checks[t]; ok && checkPath(p) == "ok" {
+				fmt.Fprintf(os.Stderr, "hats login %s: %s — already logged in (doctor ok), skipping\n", name, t)
+				continue
+			}
+			kept = append(kept, t)
+		}
+		targets = kept
+		if len(targets) == 0 {
+			fmt.Fprintf(os.Stderr, "\nnothing missing for '%s' — all doctor checks pass.\n", name)
+			return
+		}
 	}
 
 	// build the hat's environment once
@@ -708,7 +727,7 @@ usage:
   hats env <profile> [--json]    print eval-able exports (or JSON for tooling)
   hats wear <profile> -- <cmd>   run command under an identity (alias: run)
   hats shell <profile>           subshell under an identity
-  hats login <profile> [name]    log declared CLIs in, wearing the hat
+  hats login <profile> [name] [--missing]  log declared CLIs in (--missing = only ones not yet logged in)
   hats which                     active profile
   hats doctor [profile]          check credential dirs
   hats boundary <profile> [--json]  foreign identity signals (for a guard hook)
@@ -773,14 +792,24 @@ func main() {
 		}
 		cmdShell(cfg, args[1])
 	case "login":
-		if len(args) < 2 {
-			die("usage: hats login <profile> [name]   (logs each declared CLI in, wearing the hat)")
+		rest := args[1:]
+		missingOnly := false
+		var pos []string
+		for _, a := range rest {
+			if a == "--missing" || a == "-m" {
+				missingOnly = true
+			} else {
+				pos = append(pos, a)
+			}
+		}
+		if len(pos) < 1 {
+			die("usage: hats login <profile> [name] [--missing]   (logs declared CLIs in; --missing skips ones whose doctor check passes)")
 		}
 		which := ""
-		if len(args) > 2 {
-			which = args[2]
+		if len(pos) > 1 {
+			which = pos[1]
 		}
-		cmdLogin(cfg, args[1], which)
+		cmdLogin(cfg, pos[0], which, missingOnly)
 	case "doctor":
 		name := ""
 		if len(args) > 1 {
