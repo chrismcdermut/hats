@@ -49,6 +49,41 @@ inherit it for free.
 
 > Agents inherit identity from their execution context, never from their prompt.
 
+## Why not just scope MCP?
+
+If you run Claude Code, you can already scope MCP servers per project
+(`.mcp.json`) or per user. So why hats?
+
+Because **MCP scoping only covers the agent's MCP tools.** The moment the agent
+runs a shell - `vercel deploy`, `gcloud ...`, `gws ...`, `render deploy` - those
+hit your *default* account; MCP scoping does nothing for them. hats scopes the
+whole process environment, so every CLI is born on the right identity.
+
+- **Coverage.** `.mcp.json` scopes MCP servers. hats scopes Claude config *plus*
+  every credential CLI (vercel, gcloud, gws, render, neon, doppler, gh, glab,
+  ...), browser routing, and secrets. An agent with a shell reaches for those
+  CLIs constantly - MCP scoping leaves them all on the wrong account.
+- **Identity is not a folder.** Project `.mcp.json` scopes by *directory* (like
+  direnv). But your client identity isn't a folder - you touch its work in a
+  dozen folders, and personal in others. hats scopes by *who you are*, which
+  spans directories.
+- **Default-correct, not opt-in.** MCP scoping (or per-command flags like
+  `vercel --scope`) is remember-every-time. hats is ambient: the process is born
+  wearing the hat and every subprocess inherits it. Wrong-identity access takes
+  a deliberate act, not a forgotten flag.
+- **One source of truth.** MCP-only still leaves each CLI's account configured
+  separately (vercel scope, gcloud config, aws profile...). hats defines the
+  identity once in `profiles.json`; everything inherits.
+- **It enables the boundary guard.** Enforcing "this session can't touch that
+  identity" needs the *whole* identity's paths/aliases - hats derives them from
+  `profiles.json` (see [Boundaries](#boundaries-hats-boundary)). MCP scoping has
+  no equivalent; it can't build a guard.
+- **Not Claude-specific.** hats works for Codex, your own orchestrator, a plain
+  shell, CI. MCP scoping is Claude-Code-only.
+
+> MCP scoping secures one tool's plugins; hats secures the whole identity -
+> every CLI, browser, and secret - for any tool, by default.
+
 ## Install
 
 ```sh
